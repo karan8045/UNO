@@ -72,12 +72,12 @@ export class UnoGame {
     return true;
   }
 
-  public removePlayer(id: string): void {
+  public removePlayer(id: string, reason: string = 'left the game'): void {
     const idx = this.players.findIndex(p => p.id === id);
     if (idx !== -1) {
       const removed = this.players[idx];
       this.players.splice(idx, 1);
-      this.addLog(`Player ${removed.name} left the game.`, 'info');
+      this.addLog(`Player ${removed.name} ${reason}.`, 'info');
       if (this.status === 'in_progress') {
         if (this.players.length < 2) {
           this.status = 'game_over';

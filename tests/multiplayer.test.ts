@@ -117,3 +117,54 @@ test('Multiplayer: Only the room host can start the game and add bots', () => {
   assert.strictEqual(isAliceHost, true, 'Alice must be authorized as host');
 });
 
+test('Multiplayer: Host can remove players and bots from the room', () => {
+  const game = new UnoGame({ id: 'ROOM-KICK' });
+  game.addPlayer('p1', 'Host Alice', false);
+  game.addPlayer('p2', 'Guest Bob', false);
+  game.addPlayer('bot-1', 'Bot Charlie', true);
+
+  assert.strictEqual(game.players.length, 3);
+  const hostId = game.players[0].id;
+  assert.strictEqual(hostId, 'p1');
+
+  // Non-host attempts to remove player -> forbidden
+  const isBobHost = game.players[0].id === 'p2';
+  assert.strictEqual(isBobHost, false, 'Non-host cannot remove players');
+
+  // Host cannot remove themselves
+  assert.strictEqual(hostId === 'p1', true, 'Self-removal must be blocked');
+
+  // Host removes bot-1
+  game.removePlayer('bot-1', 'was removed by the host');
+  assert.strictEqual(game.players.length, 2);
+  assert.strictEqual(game.players.some(p => p.id === 'bot-1'), false);
+
+  // Host removes guest Bob during waiting state
+  game.removePlayer('p2', 'was removed by the host');
+  assert.strictEqual(game.players.length, 1);
+  assert.strictEqual(game.players[0].id, 'p1');
+
+  // Verify logging
+  const recentLogs = game.getPublicState('p1').log;
+  assert.strictEqual(recentLogs.some(l => l.text.includes('Bot Charlie was removed by the host')), true);
+  assert.strictEqual(recentLogs.some(l => l.text.includes('Guest Bob was removed by the host')), true);
+});
+
+test('Multiplayer: Removing a player during in_progress game triggers game_over if < 2 players remain', () => {
+  const game = new UnoGame({ id: 'ROOM-KICK-MIDGAME' });
+  game.addPlayer('p1', 'Alice (Host)', false);
+  game.addPlayer('p2', 'Bob', false);
+  game.startGame(5);
+
+  assert.strictEqual(game.status, 'in_progress');
+
+  // Host removes Bob during match
+  game.removePlayer('p2', 'was removed by the host');
+
+  // Game must transition to game_over with Alice as winner
+  assert.strictEqual(game.status, 'game_over');
+  assert.strictEqual(game.winner?.id, 'p1');
+  assert.strictEqual(game.players.length, 1);
+});
+
+

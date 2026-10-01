@@ -219,6 +219,49 @@ io.on('connection', (socket: Socket) => {
     broadcastGameState(mapping.gameId);
   });
 
+  // Remove player (host only)
+  socket.on('remove_player', ({ targetPlayerId }: { targetPlayerId: string }) => {
+    const mapping = socketToPlayer.get(socket.id);
+    if (!mapping) return;
+    const game = games.get(mapping.gameId);
+    if (!game) return;
+
+    // Authoritative check: Only the host can remove players
+    const hostPlayer = game.players[0];
+    if (!hostPlayer || hostPlayer.id !== mapping.playerId) {
+      socket.emit('action_error', { message: 'Only the room host can remove players.' });
+      return;
+    }
+
+    if (targetPlayerId === mapping.playerId) {
+      socket.emit('action_error', { message: 'Host cannot remove themselves from the room.' });
+      return;
+    }
+
+    const target = game.players.find(p => p.id === targetPlayerId);
+    if (!target) {
+      socket.emit('action_error', { message: 'Player not found in room.' });
+      return;
+    }
+
+    // If target is a connected human, notify them and remove their socket from room
+    if (!target.isBot) {
+      for (const [sockId, playerMap] of socketToPlayer.entries()) {
+        if (playerMap.gameId === mapping.gameId && playerMap.playerId === targetPlayerId) {
+          const targetSocket = io.sockets.sockets.get(sockId);
+          if (targetSocket) {
+            targetSocket.leave(mapping.gameId);
+            targetSocket.emit('player_kicked', { message: 'You were removed from the room by the host.' });
+          }
+          socketToPlayer.delete(sockId);
+        }
+      }
+    }
+
+    game.removePlayer(targetPlayerId, 'was removed by the host');
+    broadcastGameState(mapping.gameId);
+  });
+
   // Play a card
   socket.on('play_card', ({ cardId, declaredColor }: { cardId: string; declaredColor?: StandardColor }) => {
     const mapping = socketToPlayer.get(socket.id);

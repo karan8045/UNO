@@ -90,6 +90,14 @@ export const App: React.FC = () => {
       setTimeout(() => setErrorMessage(null), 5000);
     });
 
+    s.on('player_kicked', ({ message }: { message: string }) => {
+      soundManager.playErrorSound();
+      setErrorMessage(message || 'You were removed from the room by the host.');
+      window.history.replaceState(null, '', window.location.pathname);
+      const savedName = localStorage.getItem('uno_player_name') || 'Player';
+      s.emit('start_bot_game', { playerName: savedName });
+    });
+
     return () => {
       s.disconnect();
     };
@@ -162,6 +170,11 @@ export const App: React.FC = () => {
   const handleStartMultiplayerGame = () => {
     if (!socket) return;
     socket.emit('start_multiplayer_game');
+  };
+
+  const handleRemovePlayer = (targetPlayerId: string) => {
+    if (!socket) return;
+    socket.emit('remove_player', { targetPlayerId });
   };
 
   const handleCardClick = (card: Card) => {
@@ -609,10 +622,21 @@ export const App: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Ready
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Ready
+                    </span>
+                    {isHost && p.id !== myPlayerId && (
+                      <button
+                        onClick={() => handleRemovePlayer(p.id)}
+                        title={`Remove ${p.name}`}
+                        className="text-xs px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 font-bold border border-red-500/30 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span className="text-[10px]">✕</span> Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -683,6 +707,15 @@ export const App: React.FC = () => {
                 <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 text-[10px] font-black uppercase rounded-full shadow">
                   Current Turn
                 </span>
+              )}
+              {isHost && (
+                <button
+                  onClick={() => handleRemovePlayer(opp.id)}
+                  title={`Kick ${opp.name}`}
+                  className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/20 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
               )}
               <div className="flex items-center justify-center gap-1.5 mb-1">
                 <span className="text-lg">{idx === 0 ? '🤖' : idx === 1 ? '👾' : '🦾'}</span>
