@@ -442,6 +442,132 @@ export class UnoGame {
   }
 
   /**
+   * Loads a preset scenario for rapid manual testing of house rules.
+   */
+  public loadScenario(scenarioId: string, targetPlayerId?: string): boolean {
+    if (this.players.length === 0) return false;
+    this.status = 'in_progress';
+    this.direction = 1;
+    this.hasDrawnThisTurn = false;
+    this.winner = null;
+
+    const target = (targetPlayerId && this.players.find(p => p.id === targetPlayerId)) || this.players[0];
+    this.currentTurnIndex = this.players.indexOf(target);
+
+    let cid = 9000;
+    const card = (color: CardColor, value: CardValue): Card => ({ id: `sc-${cid++}`, color, value });
+
+    if (scenarioId === 'chain_2_2_2') {
+      const top = card('green', 'draw2');
+      this.topCard = top;
+      this.discardPile = [card('red', 'draw2'), card('blue', 'draw2'), top];
+      this.currentDeclaredColor = 'green';
+      this.stackingChain = {
+        active: true,
+        type: 'draw2_chain',
+        accumulatedPenalty: 6,
+        chainLength: 3,
+        history: [
+          { cardId: 'sc-1', cardType: 'draw2', cardColor: 'red', penaltyAdded: 2, totalAccumulated: 2, playedBy: 'bot-1', playerName: 'Alice (Bot)' },
+          { cardId: 'sc-2', cardType: 'draw2', cardColor: 'blue', penaltyAdded: 2, totalAccumulated: 4, playedBy: 'bot-2', playerName: 'Bob (Bot)' },
+          { cardId: 'sc-3', cardType: 'draw2', cardColor: 'green', penaltyAdded: 2, totalAccumulated: 6, playedBy: 'bot-3', playerName: 'Charlie (Bot)' }
+        ]
+      };
+      target.hand = [card('yellow', 'draw2'), card('wild', 'wild_draw4'), card('red', 7), card('blue', 3)];
+      target.cardCount = target.hand.length;
+      this.addLog(`Loaded scenario: +2 → +2 → +2 = +6 Penalty (+2-compatible chain)`, 'stack');
+      return true;
+    }
+
+    if (scenarioId === 'chain_2_4') {
+      const top = card('wild', 'wild_draw4');
+      this.topCard = top;
+      this.discardPile = [card('blue', 'draw2'), top];
+      this.currentDeclaredColor = 'green';
+      this.stackingChain = {
+        active: true,
+        type: 'draw4_chain',
+        accumulatedPenalty: 6,
+        chainLength: 2,
+        history: [
+          { cardId: 'sc-1', cardType: 'draw2', cardColor: 'blue', penaltyAdded: 2, totalAccumulated: 2, playedBy: 'bot-1', playerName: 'Alice (Bot)' },
+          { cardId: 'sc-2', cardType: 'wild_draw4', cardColor: 'wild', declaredColor: 'green', penaltyAdded: 4, totalAccumulated: 6, playedBy: 'bot-2', playerName: 'Bob (Bot)' }
+        ]
+      };
+      target.hand = [card('green', 'draw2'), card('wild', 'wild_draw4'), card('green', 5), card('red', 8)];
+      target.cardCount = target.hand.length;
+      this.addLog(`Loaded scenario: +2 → +4 = +6 Penalty (+4-ONLY chain! +2 is rejected)`, 'stack');
+      return true;
+    }
+
+    if (scenarioId === 'chain_2_2_4') {
+      const top = card('wild', 'wild_draw4');
+      this.topCard = top;
+      this.discardPile = [card('yellow', 'draw2'), card('red', 'draw2'), top];
+      this.currentDeclaredColor = 'blue';
+      this.stackingChain = {
+        active: true,
+        type: 'draw4_chain',
+        accumulatedPenalty: 8,
+        chainLength: 3,
+        history: [
+          { cardId: 'sc-1', cardType: 'draw2', cardColor: 'yellow', penaltyAdded: 2, totalAccumulated: 2, playedBy: 'bot-1', playerName: 'Alice (Bot)' },
+          { cardId: 'sc-2', cardType: 'draw2', cardColor: 'red', penaltyAdded: 2, totalAccumulated: 4, playedBy: 'bot-2', playerName: 'Bob (Bot)' },
+          { cardId: 'sc-3', cardType: 'wild_draw4', cardColor: 'wild', declaredColor: 'blue', penaltyAdded: 4, totalAccumulated: 8, playedBy: 'bot-3', playerName: 'Charlie (Bot)' }
+        ]
+      };
+      target.hand = [card('blue', 'draw2'), card('wild', 'wild_draw4'), card('blue', 4), card('yellow', 9)];
+      target.cardCount = target.hand.length;
+      this.addLog(`Loaded scenario: +2 → +2 → +4 = +8 Penalty (+4-ONLY chain)`, 'stack');
+      return true;
+    }
+
+    if (scenarioId === 'chain_4_4_4') {
+      const top = card('wild', 'wild_draw4');
+      this.topCard = top;
+      this.discardPile = [card('wild', 'wild_draw4'), card('wild', 'wild_draw4'), top];
+      this.currentDeclaredColor = 'red';
+      this.stackingChain = {
+        active: true,
+        type: 'draw4_chain',
+        accumulatedPenalty: 12,
+        chainLength: 3,
+        history: [
+          { cardId: 'sc-1', cardType: 'wild_draw4', cardColor: 'wild', declaredColor: 'blue', penaltyAdded: 4, totalAccumulated: 4, playedBy: 'bot-1', playerName: 'Alice (Bot)' },
+          { cardId: 'sc-2', cardType: 'wild_draw4', cardColor: 'wild', declaredColor: 'yellow', penaltyAdded: 4, totalAccumulated: 8, playedBy: 'bot-2', playerName: 'Bob (Bot)' },
+          { cardId: 'sc-3', cardType: 'wild_draw4', cardColor: 'wild', declaredColor: 'red', penaltyAdded: 4, totalAccumulated: 12, playedBy: 'bot-3', playerName: 'Charlie (Bot)' }
+        ]
+      };
+      target.hand = [card('red', 'draw2'), card('red', 3), card('green', 9), card('wild', 'wild')];
+      target.cardCount = target.hand.length;
+      this.addLog(`Loaded scenario: +4 → +4 → +4 = +12 Penalty (Player must draw 12)`, 'stack');
+      return true;
+    }
+
+    if (scenarioId === 'chain_4_reject_2') {
+      const top = card('wild', 'wild_draw4');
+      this.topCard = top;
+      this.discardPile = [card('red', 5), top];
+      this.currentDeclaredColor = 'blue';
+      this.stackingChain = {
+        active: true,
+        type: 'draw4_chain',
+        accumulatedPenalty: 4,
+        chainLength: 1,
+        history: [
+          { cardId: 'sc-1', cardType: 'wild_draw4', cardColor: 'wild', declaredColor: 'blue', penaltyAdded: 4, totalAccumulated: 4, playedBy: 'bot-1', playerName: 'Alice (Bot)' }
+        ]
+      };
+      target.hand = [card('blue', 'draw2'), card('blue', 7), card('red', 1)];
+      target.cardCount = target.hand.length;
+      this.addLog(`Loaded scenario: +4 → +2 Illegal Move Test (+2 matches color but is strictly rejected)`, 'stack');
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Advances the turn index by `steps` taking direction into account.
    */
   public advanceTurn(steps: number = 1): void {

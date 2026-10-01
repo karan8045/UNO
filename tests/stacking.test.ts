@@ -483,3 +483,47 @@ test('Server State: getPublicState() includes distinct chain type and accumulate
   assert.strictEqual(pubState.currentTurnPlayerId, 'p2');
 });
 
+test('Preset Scenarios: Properly initialize house rule states', () => {
+  const game = new UnoGame({
+    initialPlayers: [
+      { id: 'p1', name: 'Alice', isBot: false },
+      { id: 'p2', name: 'Bob', isBot: true }
+    ]
+  });
+  game.startGame(3);
+
+  // Scenario 1: +2 -> +2 -> +2
+  assert.strictEqual(game.loadScenario('chain_2_2_2', 'p1'), true);
+  assert.strictEqual(game.stackingChain.active, true);
+  assert.strictEqual(game.stackingChain.type, 'draw2_chain');
+  assert.strictEqual(game.stackingChain.accumulatedPenalty, 6);
+
+  // Scenario 2: +2 -> +4
+  assert.strictEqual(game.loadScenario('chain_2_4', 'p1'), true);
+  assert.strictEqual(game.stackingChain.active, true);
+  assert.strictEqual(game.stackingChain.type, 'draw4_chain');
+  assert.strictEqual(game.stackingChain.accumulatedPenalty, 6);
+
+  // Scenario 3: +2 -> +2 -> +4
+  assert.strictEqual(game.loadScenario('chain_2_2_4', 'p1'), true);
+  assert.strictEqual(game.stackingChain.active, true);
+  assert.strictEqual(game.stackingChain.type, 'draw4_chain');
+  assert.strictEqual(game.stackingChain.accumulatedPenalty, 8);
+
+  // Scenario 4: +4 -> +4 -> +4
+  assert.strictEqual(game.loadScenario('chain_4_4_4', 'p1'), true);
+  assert.strictEqual(game.stackingChain.active, true);
+  assert.strictEqual(game.stackingChain.type, 'draw4_chain');
+  assert.strictEqual(game.stackingChain.accumulatedPenalty, 12);
+
+  // Scenario 5: +4 -> +2 rejection test
+  assert.strictEqual(game.loadScenario('chain_4_reject_2', 'p1'), true);
+  assert.strictEqual(game.stackingChain.active, true);
+  assert.strictEqual(game.stackingChain.type, 'draw4_chain');
+  assert.strictEqual(game.stackingChain.accumulatedPenalty, 4);
+  const draw2Card = game.players[0].hand.find(c => c.value === 'draw2')!;
+  const rejectRes = game.playCard('p1', draw2Card.id);
+  assert.strictEqual(rejectRes.success, false);
+  assert.match(rejectRes.error!, /A \+2 cannot be played on a \+4/);
+});
+

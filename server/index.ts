@@ -199,6 +199,19 @@ io.on('connection', (socket: Socket) => {
     broadcastGameState(mapping.gameId);
   });
 
+  // Load preset scenario for interactive testing
+  socket.on('load_scenario', ({ scenario }: { scenario: string }) => {
+    const mapping = socketToPlayer.get(socket.id);
+    if (!mapping) return;
+    const game = games.get(mapping.gameId);
+    if (!game) return;
+
+    const ok = game.loadScenario(scenario, mapping.playerId);
+    if (ok) {
+      broadcastGameState(mapping.gameId);
+    }
+  });
+
   // Restart / Rematch
   socket.on('restart_game', () => {
     const mapping = socketToPlayer.get(socket.id);

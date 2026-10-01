@@ -100,6 +100,11 @@ export const App: React.FC = () => {
     socket.emit('restart_game');
   };
 
+  const handleLoadScenario = (scenario: string) => {
+    if (!socket) return;
+    socket.emit('load_scenario', { scenario });
+  };
+
   // Helper to force an invalid card play to verify server-authoritative rejection
   const handleForceInvalidPlay = (card: Card) => {
     if (!socket) return;
@@ -174,6 +179,50 @@ export const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Test Scenarios Quick Bar */}
+      <div className="my-2 py-2 px-3 bg-slate-800/70 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2 flex-wrap text-xs">
+        <span className="font-extrabold text-amber-400 flex items-center gap-1.5">
+          <span className="text-base">🧪</span> Quick Test Rules:
+        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => handleLoadScenario('chain_2_2_2')}
+            className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold border border-slate-500/50 cursor-pointer transition-colors"
+            title="+2 -> +2 -> +2: Next player draws 6 if unable to continue"
+          >
+            +2 → +2 → +2 (Draw 6)
+          </button>
+          <button
+            onClick={() => handleLoadScenario('chain_2_4')}
+            className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold border border-slate-500/50 cursor-pointer transition-colors"
+            title="+2 -> +4: Penalty 6, player can play +4 only"
+          >
+            +2 → +4 (+4 Only)
+          </button>
+          <button
+            onClick={() => handleLoadScenario('chain_2_2_4')}
+            className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold border border-slate-500/50 cursor-pointer transition-colors"
+            title="+2 -> +2 -> +4: Penalty 8, player can play +4 only"
+          >
+            +2 → +2 → +4 (+8 Penalty)
+          </button>
+          <button
+            onClick={() => handleLoadScenario('chain_4_4_4')}
+            className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold border border-slate-500/50 cursor-pointer transition-colors"
+            title="+4 -> +4 -> +4: Next player draws 12 if unable to continue"
+          >
+            +4 → +4 → +4 (Draw 12)
+          </button>
+          <button
+            onClick={() => handleLoadScenario('chain_4_reject_2')}
+            className="px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-200 font-bold border border-rose-500/60 cursor-pointer transition-colors"
+            title="+4 -> +2: Test server rejection of +2 on a +4"
+          >
+            +4 → Try +2 (Test Reject)
+          </button>
+        </div>
+      </div>
 
       {/* Server Error Alert Banner */}
       {errorMessage && (
