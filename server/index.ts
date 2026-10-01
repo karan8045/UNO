@@ -143,6 +143,25 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  // Add bot to waiting room
+  socket.on('add_bot', () => {
+    const mapping = socketToPlayer.get(socket.id);
+    if (!mapping) return;
+    const game = games.get(mapping.gameId);
+    if (!game || game.status !== 'waiting') return;
+
+    if (game.players.length >= 6) {
+      socket.emit('action_error', { message: 'Maximum 6 players per room.' });
+      return;
+    }
+
+    const botCount = game.players.filter(p => p.isBot).length + 1;
+    const botNames = ['Alice (Bot)', 'Bob (Bot)', 'Charlie (Bot)', 'David (Bot)', 'Emma (Bot)'];
+    const botName = botNames[botCount - 1] || `Bot ${botCount}`;
+    game.addPlayer(`bot-${Date.now()}-${botCount}`, botName, true);
+    broadcastGameState(mapping.gameId);
+  });
+
   // Play a card
   socket.on('play_card', ({ cardId, declaredColor }: { cardId: string; declaredColor?: StandardColor }) => {
     const mapping = socketToPlayer.get(socket.id);
