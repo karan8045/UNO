@@ -47,30 +47,36 @@ export const App: React.FC = () => {
 
     s.on('game_state', (state: PublicGameState) => {
       setGameState((prev) => {
-        if (prev) {
-          // Play audio effects based on state delta
-          if (state.stackingChain.active && state.stackingChain.accumulatedPenalty > prev.stackingChain.accumulatedPenalty) {
-            soundManager.playStackSound(state.stackingChain.accumulatedPenalty);
-          } else if (prev.stackingChain.active && !state.stackingChain.active) {
-            soundManager.playPenaltyDrawSound();
-          } else if (state.topCard.id !== prev.topCard.id) {
-            soundManager.playCardSound();
-          } else if (state.deckCount < prev.deckCount) {
-            soundManager.playDrawSound();
-          }
+        try {
+          if (prev) {
+            // Play audio effects based on state delta safely
+            const currentPenalty = state.stackingChain?.accumulatedPenalty || 0;
+            const prevPenalty = prev.stackingChain?.accumulatedPenalty || 0;
+            if (state.stackingChain?.active && currentPenalty > prevPenalty) {
+              soundManager.playStackSound(currentPenalty);
+            } else if (prev.stackingChain?.active && !state.stackingChain?.active) {
+              soundManager.playPenaltyDrawSound();
+            } else if (state.topCard?.id && prev.topCard?.id && state.topCard.id !== prev.topCard.id) {
+              soundManager.playCardSound();
+            } else if (typeof state.deckCount === 'number' && typeof prev.deckCount === 'number' && state.deckCount < prev.deckCount) {
+              soundManager.playDrawSound();
+            }
 
-          // Your turn chime
-          const myId = state.myPlayerId || `player-${s.id}`;
-          const isMeNow = state.currentTurnPlayerId === myId;
-          const wasMe = prev.currentTurnPlayerId === (prev.myPlayerId || `player-${s.id}`);
-          if (isMeNow && !wasMe && state.status === 'in_progress') {
-            soundManager.playTurnSound();
-          }
+            // Your turn chime
+            const myId = state.myPlayerId || `player-${s.id}`;
+            const isMeNow = state.currentTurnPlayerId === myId;
+            const wasMe = prev.currentTurnPlayerId === (prev.myPlayerId || `player-${s.id}`);
+            if (isMeNow && !wasMe && state.status === 'in_progress') {
+              soundManager.playTurnSound();
+            }
 
-          // Victory fanfare
-          if (state.status === 'game_over' && prev.status !== 'game_over') {
-            soundManager.playWinSound();
+            // Victory fanfare
+            if (state.status === 'game_over' && prev.status !== 'game_over') {
+              soundManager.playWinSound();
+            }
           }
+        } catch (audioErr) {
+          console.warn('Audio or state delta calculation ignored:', audioErr);
         }
         return state;
       });
@@ -219,11 +225,17 @@ export const App: React.FC = () => {
 
   const myPlayerId = gameState.myPlayerId || `player-${socket?.id}`;
   const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
-  const opponents = gameState.players.filter(p => p.id !== myPlayerId);
-  const myPlayer = gameState.players.find(p => p.id === myPlayerId);
-  const isHost = gameState.players[0]?.id === myPlayerId;
+  const opponents = (gameState.players || []).filter(p => p.id !== myPlayerId);
+  const myPlayer = (gameState.players || []).find(p => p.id === myPlayerId);
+  const isHost = (gameState.players || [])[0]?.id === myPlayerId;
   const isCustomRoom = !gameState.id.startsWith('bot-game-');
-  const stacking = gameState.stackingChain;
+  const stacking = gameState.stackingChain || {
+    active: false,
+    type: null,
+    accumulatedPenalty: 0,
+    chainLength: 0,
+    history: []
+  };
 
   return (
     <div className="min-h-screen flex flex-col justify-between p-2 sm:p-4 select-none relative overflow-hidden">
@@ -718,25 +730,33 @@ export const App: React.FC = () => {
           {/* Active Discard Pile */}
           <div className="flex flex-col items-center gap-2">
             <div className="relative">
-              <CardView card={gameState.topCard} isTopCard={true} size="md" isPlayable={false} />
+              {gameState.topCard ? (
+                <CardView card={gameState.topCard} isTopCard={true} size="md" isPlayable={false} />
+              ) : (
+                <div className="w-24 h-36 rounded-xl border-2 border-dashed border-slate-700 bg-slate-900/50 flex items-center justify-center text-xs text-slate-500 font-bold">
+                  No Card
+                </div>
+              )}
             </div>
 
             {/* Declared Color Indicator */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-bold">
-              <span className="text-slate-400">Active Color:</span>
-              <span
-                className={`w-3 h-3 rounded-full shadow ${
-                  gameState.currentDeclaredColor === 'red'
-                    ? 'bg-red-500 ring-2 ring-red-400/50'
-                    : gameState.currentDeclaredColor === 'blue'
-                    ? 'bg-blue-500 ring-2 ring-blue-400/50'
-                    : gameState.currentDeclaredColor === 'green'
-                    ? 'bg-emerald-500 ring-2 ring-emerald-400/50'
-                    : 'bg-amber-400 ring-2 ring-amber-300/50'
-                }`}
-              />
-              <span className="uppercase text-[11px] text-white font-extrabold">{gameState.currentDeclaredColor}</span>
-            </div>
+            {gameState.topCard && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-bold">
+                <span className="text-slate-400">Active Color:</span>
+                <span
+                  className={`w-3 h-3 rounded-full shadow ${
+                    gameState.currentDeclaredColor === 'red'
+                      ? 'bg-red-500 ring-2 ring-red-400/50'
+                      : gameState.currentDeclaredColor === 'blue'
+                      ? 'bg-blue-500 ring-2 ring-blue-400/50'
+                      : gameState.currentDeclaredColor === 'green'
+                      ? 'bg-emerald-500 ring-2 ring-emerald-400/50'
+                      : 'bg-amber-400 ring-2 ring-amber-300/50'
+                  }`}
+                />
+                <span className="uppercase text-[11px] text-white font-extrabold">{gameState.currentDeclaredColor || 'red'}</span>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -748,7 +768,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className={`w-3 h-3 rounded-full ${isMyTurn ? 'bg-emerald-500 animate-ping' : 'bg-slate-600'}`}></span>
             <span className="font-extrabold text-sm text-white">
-              {isMyTurn ? '👉 YOUR TURN!' : `Waiting for ${gameState.players.find(p => p.id === gameState.currentTurnPlayerId)?.name}...`}
+              {isMyTurn ? '👉 YOUR TURN!' : `Waiting for ${(gameState.players || []).find(p => p.id === gameState.currentTurnPlayerId)?.name || 'Next Player'}...`}
             </span>
             {stacking.active && isMyTurn && (
               <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/30">
@@ -772,8 +792,9 @@ export const App: React.FC = () => {
             </button>
 
             <span className="text-xs text-slate-400 flex items-center gap-1.5">
-              Cards: <strong className="text-white">{gameState.myHand.length}</strong>
-              {gameState.myHand.length === 1 && (
+              <span>{myPlayer?.name || 'You'}:</span>
+              Cards: <strong className="text-white">{(gameState.myHand || []).length}</strong>
+              {(gameState.myHand || []).length === 1 && (
                 <span className="animate-bounce px-1.5 py-0.5 bg-red-600 text-yellow-300 font-black text-[10px] rounded border border-yellow-400 shadow">
                   UNO!
                 </span>
@@ -784,10 +805,10 @@ export const App: React.FC = () => {
 
         {/* Player Hand Cards */}
         <div className="w-full overflow-x-auto pb-4 pt-2 px-2 flex justify-start sm:justify-center items-end gap-2 scroll-smooth">
-          {gameState.myHand.map((card) => {
-            const validation = isMyTurn
-              ? validateCardPlay(card, gameState.topCard, gameState.currentDeclaredColor, stacking)
-              : { valid: false, reason: 'Not your turn' };
+          {(gameState.myHand || []).map((card) => {
+            const validation = isMyTurn && gameState.topCard
+              ? validateCardPlay(card, gameState.topCard, gameState.currentDeclaredColor || 'red', stacking)
+              : { valid: false, reason: isMyTurn ? 'Waiting for card' : 'Not your turn' };
 
             const isCardDisabled = isMyTurn ? !validation.valid : false;
 

@@ -107,6 +107,7 @@ io.on('connection', (socket: Socket) => {
     socketToPlayer.set(socket.id, { gameId, playerId: humanId });
 
     socket.emit('game_joined', { gameId, playerId: humanId });
+    socket.emit('game_state', game.getPublicState(humanId));
     broadcastGameState(gameId);
   });
 
@@ -149,6 +150,7 @@ io.on('connection', (socket: Socket) => {
       socket.join(gameId);
       socketToPlayer.set(socket.id, { gameId, playerId });
       socket.emit('game_joined', { gameId, playerId });
+      socket.emit('game_state', game.getPublicState(playerId));
     } else {
       // In progress or game over: check reconnection or spectator
       const existing = game.players.find(p => p.name.toLowerCase() === name.toLowerCase() && !p.isBot);
@@ -156,12 +158,14 @@ io.on('connection', (socket: Socket) => {
         socket.join(gameId);
         socketToPlayer.set(socket.id, { gameId, playerId: existing.id });
         socket.emit('game_joined', { gameId, playerId: existing.id });
+        socket.emit('game_state', game.getPublicState(existing.id));
         game.addLog(`Player ${existing.name} reconnected.`, 'info');
       } else {
         // Allow spectating
         socket.join(gameId);
         socketToPlayer.set(socket.id, { gameId, playerId });
         socket.emit('game_joined', { gameId, playerId });
+        socket.emit('game_state', game.getPublicState(playerId));
       }
     }
 

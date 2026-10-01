@@ -12,10 +12,16 @@ export interface ValidationResult {
  */
 export function validateCardPlay(
   card: Card,
-  topCard: Card,
+  topCard: Card | null | undefined,
   currentDeclaredColor: StandardColor,
   stackingChain: StackingChainState
 ): ValidationResult {
+  if (!card) {
+    return { valid: false, reason: 'Invalid card.' };
+  }
+  if (!topCard) {
+    return { valid: false, reason: 'Game has not started or top card is missing.' };
+  }
   // If an active draw chain is in progress, stacking house rules strictly apply:
   if (stackingChain.active) {
     if (stackingChain.type === 'draw4_chain') {
@@ -91,9 +97,10 @@ export function validateCardPlay(
  */
 export function hasPlayableCard(
   hand: Card[],
-  topCard: Card,
+  topCard: Card | null | undefined,
   currentDeclaredColor: StandardColor,
   stackingChain: StackingChainState
 ): boolean {
+  if (!topCard || !hand) return false;
   return hand.some(card => validateCardPlay(card, topCard, currentDeclaredColor, stackingChain).valid);
 }

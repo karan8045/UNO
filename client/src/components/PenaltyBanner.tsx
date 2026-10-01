@@ -12,7 +12,7 @@ export const PenaltyBanner: React.FC<PenaltyBannerProps> = ({
   isMyTurn,
   onDrawPenalty
 }) => {
-  if (!stackingChain.active) {
+  if (!stackingChain || !stackingChain.active) {
     return null;
   }
 
@@ -79,7 +79,7 @@ export const PenaltyBanner: React.FC<PenaltyBannerProps> = ({
         </div>
 
         {/* Stacking history chain steps */}
-        {stackingChain.history.length > 0 && (
+        {Array.isArray(stackingChain.history) && stackingChain.history.length > 0 && (
           <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-center gap-1.5 flex-wrap text-xs text-slate-300">
             <span className="font-bold text-slate-400 mr-1">Chain:</span>
             {stackingChain.history.map((step, idx) => (

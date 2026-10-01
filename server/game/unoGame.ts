@@ -27,8 +27,8 @@ export class UnoGame {
   public direction: 1 | -1 = 1;
   public drawPile: Card[] = [];
   public discardPile: Card[] = [];
-  public topCard!: Card;
-  public currentDeclaredColor!: StandardColor;
+  public topCard: Card | null = null;
+  public currentDeclaredColor: StandardColor = 'red';
   public stackingChain: StackingChainState;
   public status: 'waiting' | 'in_progress' | 'game_over' = 'waiting';
   public winner: Player | null = null;
@@ -733,8 +733,8 @@ export class UnoGame {
       currentTurnIndex: this.currentTurnIndex,
       currentTurnPlayerId: this.players[this.currentTurnIndex]?.id || '',
       direction: this.direction,
-      topCard: this.topCard,
-      currentDeclaredColor: this.currentDeclaredColor,
+      topCard: this.topCard || null,
+      currentDeclaredColor: this.currentDeclaredColor || 'red',
       stackingChain: { ...this.stackingChain, history: [...this.stackingChain.history] },
       status: this.status,
       winner: this.winner

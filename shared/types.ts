@@ -68,7 +68,7 @@ export interface GameState {
   currentTurnIndex: number;
   currentTurnPlayerId: string;
   direction: 1 | -1; // 1 = clockwise, -1 = counter-clockwise
-  topCard: Card;
+  topCard: Card | null;
   currentDeclaredColor: StandardColor;
   stackingChain: StackingChainState;
   status: 'waiting' | 'in_progress' | 'game_over';
@@ -85,7 +85,7 @@ export interface PublicGameState {
   currentTurnIndex: number;
   currentTurnPlayerId: string;
   direction: 1 | -1;
-  topCard: Card;
+  topCard: Card | null;
   currentDeclaredColor: StandardColor;
   stackingChain: StackingChainState;
   status: 'waiting' | 'in_progress' | 'game_over';

@@ -20,6 +20,8 @@ export const CardView: React.FC<CardViewProps> = ({
   size = 'md',
   isTopCard = false
 }) => {
+  if (!card) return null;
+
   // Dimensions based on size
   const sizeClasses = {
     sm: 'w-14 h-20 text-xs rounded-lg',
