@@ -24,18 +24,18 @@ export const CardView: React.FC<CardViewProps> = ({
 
   // Dimensions based on size
   const sizeClasses = {
-    sm: 'w-14 h-20 text-xs rounded-lg',
-    md: 'w-24 h-36 text-sm rounded-xl',
-    lg: 'w-32 h-48 text-base rounded-2xl'
+    sm: 'w-14 h-20 text-xs rounded-xl',
+    md: 'w-24 h-36 text-sm rounded-2xl',
+    lg: 'w-32 h-48 text-base rounded-[24px]'
   }[size];
 
   // Background gradient/color based on card color
   const colorStyles: Record<string, string> = {
-    red: 'bg-gradient-to-br from-red-500 to-red-600 border-red-400 text-white shadow-red-900/50',
-    blue: 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400 text-white shadow-blue-900/50',
-    green: 'bg-gradient-to-br from-emerald-500 to-emerald-600 border-emerald-400 text-white shadow-emerald-900/50',
-    yellow: 'bg-gradient-to-br from-amber-400 to-amber-500 border-amber-300 text-slate-900 shadow-amber-900/50',
-    wild: 'bg-gradient-to-tr from-red-500 via-yellow-400 to-blue-600 border-purple-300 text-white shadow-purple-900/50'
+    red: 'bg-gradient-to-br from-[#e11d48] to-[#881337] border-rose-400/30 text-white shadow-rose-950/60',
+    blue: 'bg-gradient-to-br from-[#0ea5e9] to-[#0369a1] border-sky-400/30 text-white shadow-sky-950/60',
+    green: 'bg-gradient-to-br from-[#10b981] to-[#047857] border-emerald-400/30 text-white shadow-emerald-950/60',
+    yellow: 'bg-gradient-to-br from-[#fbbf24] to-[#d97706] border-amber-300/40 text-slate-950 shadow-amber-950/60',
+    wild: 'bg-gradient-to-tr from-[#ec4899] via-[#ff5e28] to-[#0ea5e9] border-white/40 text-white shadow-orange-950/60'
   };
 
   const getDisplayValue = () => {
