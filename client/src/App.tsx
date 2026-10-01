@@ -6,6 +6,7 @@ import { CardView } from './components/CardView.tsx';
 import { PenaltyBanner } from './components/PenaltyBanner.tsx';
 import { ColorPickerModal } from './components/ColorPickerModal.tsx';
 import { RulesGuideModal } from './components/RulesGuideModal.tsx';
+import { soundManager } from './utils/audio.ts';
 
 export const App: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -15,6 +16,7 @@ export const App: React.FC = () => {
   const [pendingWildCard, setPendingWildCard] = useState<Card | null>(null);
   const [showLogDrawer, setShowLogDrawer] = useState<boolean>(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [playerName, setPlayerName] = useState<string>('Player 1');
   const [roomInput, setRoomInput] = useState<string>('');
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -31,11 +33,38 @@ export const App: React.FC = () => {
     });
 
     s.on('game_state', (state: PublicGameState) => {
-      setGameState(state);
+      setGameState((prev) => {
+        if (prev) {
+          // Play audio effects based on state delta
+          if (state.stackingChain.active && state.stackingChain.accumulatedPenalty > prev.stackingChain.accumulatedPenalty) {
+            soundManager.playStackSound(state.stackingChain.accumulatedPenalty);
+          } else if (prev.stackingChain.active && !state.stackingChain.active) {
+            soundManager.playPenaltyDrawSound();
+          } else if (state.topCard.id !== prev.topCard.id) {
+            soundManager.playCardSound();
+          } else if (state.deckCount < prev.deckCount) {
+            soundManager.playDrawSound();
+          }
+
+          // Your turn chime
+          const isMeNow = state.currentTurnPlayerId.includes(s.id || '') || state.players[0]?.id === state.currentTurnPlayerId;
+          const wasMe = prev.currentTurnPlayerId.includes(s.id || '') || prev.players[0]?.id === prev.currentTurnPlayerId;
+          if (isMeNow && !wasMe && state.status === 'in_progress') {
+            soundManager.playTurnSound();
+          }
+
+          // Victory fanfare
+          if (state.status === 'game_over' && prev.status !== 'game_over') {
+            soundManager.playWinSound();
+          }
+        }
+        return state;
+      });
       setErrorMessage(null); // Clear errors on state update
     });
 
     s.on('action_error', ({ message }: { message: string }) => {
+      soundManager.playErrorSound();
       setErrorMessage(message);
       // Auto dismiss error after 5s
       setTimeout(() => setErrorMessage(null), 5000);
@@ -245,6 +274,18 @@ export const App: React.FC = () => {
             <span>📋</span>
             <span>Logs ({gameState.log.length})</span>
           </button>
+
+          <button
+            onClick={() => {
+              const next = !soundEnabled;
+              soundManager.enabled = next;
+              setSoundEnabled(next);
+            }}
+            title={soundEnabled ? 'Mute Sounds' : 'Unmute Sounds'}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 flex items-center cursor-pointer transition-colors"
+          >
+            <span>{soundEnabled ? '🔊' : '🔇'}</span>
+          </button>
         </div>
       </header>
 
@@ -370,11 +411,16 @@ export const App: React.FC = () => {
                 <span className="text-lg">{idx === 0 ? '🤖' : idx === 1 ? '👾' : '🦾'}</span>
                 <span className="font-extrabold text-sm text-slate-100">{opp.name}</span>
               </div>
-              <div className="flex items-center justify-center gap-1">
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
                 <span className="w-5 h-7 rounded bg-red-600 border border-white/20 inline-block shadow-sm"></span>
                 <span className="text-xs font-bold text-slate-300">
                   {opp.cardCount} card{opp.cardCount !== 1 ? 's' : ''}
                 </span>
+                {opp.cardCount === 1 && (
+                  <span className="animate-bounce px-1.5 py-0.5 bg-red-600 text-yellow-300 font-black text-[10px] rounded border border-yellow-400 shadow">
+                    UNO!
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -479,8 +525,13 @@ export const App: React.FC = () => {
               Pass Turn
             </button>
 
-            <span className="text-xs text-slate-400">
-              Cards in hand: <strong className="text-white">{gameState.myHand.length}</strong>
+            <span className="text-xs text-slate-400 flex items-center gap-1.5">
+              Cards: <strong className="text-white">{gameState.myHand.length}</strong>
+              {gameState.myHand.length === 1 && (
+                <span className="animate-bounce px-1.5 py-0.5 bg-red-600 text-yellow-300 font-black text-[10px] rounded border border-yellow-400 shadow">
+                  UNO!
+                </span>
+              )}
             </span>
           </div>
         </div>

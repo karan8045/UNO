@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { UnoGame } from './game/unoGame.ts';
 import type { StandardColor } from '../shared/types.ts';
@@ -258,7 +259,12 @@ io.on('connection', (socket: Socket) => {
 
 // Fallback to index.html for client-side routing
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../index.html'));
+  const distIndex = path.join(__dirname, '../dist/index.html');
+  if (fs.existsSync(distIndex)) {
+    res.sendFile(distIndex);
+  } else {
+    res.sendFile(path.join(__dirname, '../index.html'));
+  }
 });
 
 const PORT = process.env.PORT || 3001;
