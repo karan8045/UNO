@@ -501,6 +501,20 @@ export const App: React.FC = () => {
             Solo Match
           </button>
 
+          {/* 4-Dots Grid Menu Button (matching BioForge sample) */}
+          <button
+            onClick={() => setShowLogDrawer(!showLogDrawer)}
+            title="Toggle Action Feed"
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <div className="grid grid-cols-2 gap-1 p-0.5">
+              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+            </div>
+          </button>
+
           <button
             onClick={() => {
               const next = !soundEnabled;
@@ -608,6 +622,35 @@ export const App: React.FC = () => {
                   {copiedLink ? '✓ Copied' : '🔗 Copy Link'}
                 </button>
               </div>
+            </div>
+
+            {/* BioForge-style Stats Bento Grid */}
+            <div className="grid grid-cols-3 gap-2.5 my-4">
+              <div className="bg-[#090d14] border border-white/10 rounded-2xl p-3 text-left">
+                <div className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">4X</div>
+                <div className="text-[9px] uppercase font-bold text-slate-400 mt-0.5 tracking-wider truncate">Max Stack</div>
+              </div>
+              <div className="bg-[#090d14] border border-white/10 rounded-2xl p-3 text-left">
+                <div className="text-xl sm:text-2xl font-black text-brand-400 font-mono tracking-tight">100%</div>
+                <div className="text-[9px] uppercase font-bold text-slate-400 mt-0.5 tracking-wider truncate">Authoritative</div>
+              </div>
+              <div className="bg-[#090d14] border border-white/10 rounded-2xl p-3 text-left">
+                <div className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">108</div>
+                <div className="text-[9px] uppercase font-bold text-slate-400 mt-0.5 tracking-wider truncate">Cards in Deck</div>
+              </div>
+            </div>
+
+            {/* Discover Rules Action Pill (matching BioForge sample) */}
+            <div className="flex justify-center mb-5">
+              <button
+                onClick={() => setIsRulesOpen(true)}
+                className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs transition cursor-pointer"
+              >
+                <div className="w-5 h-5 rounded-lg bg-brand-500 flex items-center justify-center text-white text-[10px] font-black shadow-sm">
+                  ↗
+                </div>
+                <span>Discover Stacking Rules</span>
+              </button>
             </div>
 
             {/* Connected Players List */}
