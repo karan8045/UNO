@@ -408,7 +408,7 @@ export class UnoGame {
 
     return {
       success: true,
-      cardsDrawn,
+      cardsDrawn: drawnCards,
       penaltyResolved: false,
       penaltyAmount: 0
     };

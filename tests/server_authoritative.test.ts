@@ -150,3 +150,35 @@ test('Authoritative: Player cannot pass turn while stacking chain is active', ()
   assert.strictEqual(passRes.success, false);
   assert.match(passRes.error!, /Cannot pass during an active stacking chain/);
 });
+
+test('Normal Play: drawCard and bot turn draw succeed when no stacking chain', () => {
+  const game = new UnoGame({
+    initialPlayers: [
+      { id: 'p1', name: 'Alice', isBot: false },
+      { id: 'bot1', name: 'Bot-Bob', isBot: true }
+    ]
+  });
+  game.startGame(3);
+  setupTestState(game, createCard('top', 'red', 5), 'red');
+
+  // Human draws 1 card
+  const initialHand = game.players[0].hand.length;
+  const drawRes = game.drawCard('p1');
+  assert.strictEqual(drawRes.success, true);
+  assert.strictEqual(drawRes.penaltyResolved, false);
+  assert.strictEqual(drawRes.cardsDrawn.length, 1);
+  assert.strictEqual(game.players[0].hand.length, initialHand + 1);
+
+  // Advance turn to bot
+  game.advanceTurn(1);
+  assert.strictEqual(game.getCurrentPlayer().id, 'bot1');
+
+  // Bot has no playable cards, draws normally
+  game.players[1].hand = [createCard('b1', 'blue', 1), createCard('b2', 'blue', 2)];
+  game.drawPile = [createCard('deck1', 'green', 9)]; // drawn card also not playable
+
+  const botRes = game.playBotTurn();
+  assert.strictEqual(botRes.acted, true);
+  assert.strictEqual(botRes.action, 'pass');
+});
+
