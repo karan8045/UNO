@@ -618,22 +618,41 @@ export const App: React.FC = () => {
             </div>
 
             {/* Lobby Actions */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleAddBot}
-                disabled={gameState.players.length >= 6}
-                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold rounded-xl text-sm transition cursor-pointer border border-slate-700"
-              >
-                + Add AI Bot
-              </button>
-              <button
-                onClick={handleStartMultiplayerGame}
-                disabled={gameState.players.length < 2}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
-              >
-                Start Game ({gameState.players.length} players)
-              </button>
-            </div>
+            {isHost ? (
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleAddBot}
+                    disabled={gameState.players.length >= 6}
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold rounded-xl text-sm transition cursor-pointer border border-slate-700"
+                  >
+                    + Add AI Bot
+                  </button>
+                  <button
+                    onClick={handleStartMultiplayerGame}
+                    disabled={gameState.players.length < 2}
+                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
+                  >
+                    Start Game ({gameState.players.length} players)
+                  </button>
+                </div>
+                {gameState.players.length < 2 && (
+                  <p className="text-xs text-amber-400 font-medium text-center">
+                    ⏳ Waiting for at least 1 more friend to join, or click "+ Add AI Bot".
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-center space-y-1.5 shadow-inner">
+                <div className="flex items-center justify-center gap-2 text-amber-400 font-extrabold text-sm">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                  Waiting for host to start game...
+                </div>
+                <p className="text-xs text-slate-400">
+                  Only the room host (<strong className="text-white">{gameState.players[0]?.name || 'Host'}</strong>) can launch the match.
+                </p>
+              </div>
+            )}
 
             <div className="mt-4 pt-3 border-t border-slate-800/80">
               <button

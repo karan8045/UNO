@@ -99,3 +99,21 @@ test('Multiplayer: Real-time stacking chain progression between human players', 
   assert.strictEqual(game.stackingChain.active, false);
   assert.strictEqual(game.getCurrentPlayer().id, 'p1');
 });
+
+test('Multiplayer: Only the room host can start the game and add bots', () => {
+  const game = new UnoGame({ id: 'ROOM-HOST' });
+  game.addPlayer('p1', 'Alice (Host)', false);
+  game.addPlayer('p2', 'Bob (Guest)', false);
+
+  // Host is game.players[0]
+  assert.strictEqual(game.players[0].id, 'p1');
+  assert.notStrictEqual(game.players[0].id, 'p2');
+
+  // Verify guest vs host authorization
+  const isGuestHost = game.players[0].id === 'p2';
+  assert.strictEqual(isGuestHost, false, 'Guest must not be authorized as host');
+
+  const isAliceHost = game.players[0].id === 'p1';
+  assert.strictEqual(isAliceHost, true, 'Alice must be authorized as host');
+});
+

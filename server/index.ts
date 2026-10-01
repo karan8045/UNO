@@ -179,6 +179,13 @@ io.on('connection', (socket: Socket) => {
     const game = games.get(mapping.gameId);
     if (!game) return;
 
+    // Authoritative check: Only the host (first player in game.players) can start the game
+    const hostPlayer = game.players[0];
+    if (!hostPlayer || hostPlayer.id !== mapping.playerId) {
+      socket.emit('action_error', { message: 'Only the room host can start the game.' });
+      return;
+    }
+
     if (game.status === 'waiting' && game.players.length >= 2) {
       game.startGame(7);
       broadcastGameState(mapping.gameId);
@@ -187,12 +194,18 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // Add bot to waiting room
+  // Add bot to waiting room (host only)
   socket.on('add_bot', () => {
     const mapping = socketToPlayer.get(socket.id);
     if (!mapping) return;
     const game = games.get(mapping.gameId);
     if (!game || game.status !== 'waiting') return;
+
+    const hostPlayer = game.players[0];
+    if (!hostPlayer || hostPlayer.id !== mapping.playerId) {
+      socket.emit('action_error', { message: 'Only the room host can add bots.' });
+      return;
+    }
 
     if (game.players.length >= 6) {
       socket.emit('action_error', { message: 'Maximum 6 players per room.' });
