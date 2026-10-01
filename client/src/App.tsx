@@ -16,8 +16,12 @@ export const App: React.FC = () => {
   const [pendingWildCard, setPendingWildCard] = useState<Card | null>(null);
   const [showLogDrawer, setShowLogDrawer] = useState<boolean>(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState<boolean>(false);
+  const [roomModalTab, setRoomModalTab] = useState<'join' | 'create'>('join');
+  const [createRoomCode, setCreateRoomCode] = useState<string>('');
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [playerName, setPlayerName] = useState<string>('Player 1');
+  const [playerName, setPlayerName] = useState<string>(() => localStorage.getItem('uno_player_name') || 'Player');
   const [roomInput, setRoomInput] = useState<string>('');
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -28,8 +32,17 @@ export const App: React.FC = () => {
 
     s.on('connect', () => {
       console.log('Connected to server via socket:', s.id);
-      // Auto-start quick bot game on first connect
-      s.emit('start_bot_game', { playerName: 'You' });
+      // Check if URL has ?room=CODE
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      const initialName = localStorage.getItem('uno_player_name') || 'Player';
+      if (roomParam) {
+        setRoomInput(roomParam.toUpperCase());
+        s.emit('join_room', { roomCode: roomParam.toUpperCase(), playerName: initialName });
+      } else {
+        // Auto-start quick bot game on first connect
+        s.emit('start_bot_game', { playerName: initialName });
+      }
     });
 
     s.on('game_state', (state: PublicGameState) => {
@@ -47,8 +60,9 @@ export const App: React.FC = () => {
           }
 
           // Your turn chime
-          const isMeNow = state.currentTurnPlayerId.includes(s.id || '') || state.players[0]?.id === state.currentTurnPlayerId;
-          const wasMe = prev.currentTurnPlayerId.includes(s.id || '') || prev.players[0]?.id === prev.currentTurnPlayerId;
+          const myId = state.myPlayerId || `player-${s.id}`;
+          const isMeNow = state.currentTurnPlayerId === myId;
+          const wasMe = prev.currentTurnPlayerId === (prev.myPlayerId || `player-${s.id}`);
           if (isMeNow && !wasMe && state.status === 'in_progress') {
             soundManager.playTurnSound();
           }
@@ -84,13 +98,53 @@ export const App: React.FC = () => {
 
   const handleStartBotGame = () => {
     if (!socket) return;
-    socket.emit('start_bot_game', { playerName });
+    window.history.replaceState(null, '', window.location.pathname);
+    const finalName = playerName.trim() || 'Player';
+    localStorage.setItem('uno_player_name', finalName);
+    socket.emit('start_bot_game', { playerName: finalName });
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
+
+  const handleCopyLink = (code: string) => {
+    const inviteUrl = `${window.location.origin}/?room=${code}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleOpenRoomModal = (initialTab: 'join' | 'create' = 'join') => {
+    setRoomModalTab(initialTab);
+    if (!createRoomCode) {
+      setCreateRoomCode('UNO-' + Math.floor(1000 + Math.random() * 9000));
+    }
+    setIsRoomModalOpen(true);
+  };
+
+  const handleCreateRoomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!socket || !createRoomCode.trim()) return;
+    const code = createRoomCode.trim().toUpperCase();
+    const finalName = playerName.trim() || 'Player 1';
+    localStorage.setItem('uno_player_name', finalName);
+    socket.emit('join_room', { roomCode: code, playerName: finalName });
+    window.history.replaceState(null, '', `?room=${code}`);
+    setRoomInput(code);
+    setIsRoomModalOpen(false);
   };
 
   const handleJoinRoom = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!socket || !roomInput.trim()) return;
-    socket.emit('join_room', { roomCode: roomInput.trim(), playerName });
+    const code = roomInput.trim().toUpperCase();
+    const finalName = playerName.trim() || 'Player 1';
+    localStorage.setItem('uno_player_name', finalName);
+    socket.emit('join_room', { roomCode: code, playerName: finalName });
+    window.history.replaceState(null, '', `?room=${code}`);
     setIsRoomModalOpen(false);
   };
 
@@ -163,8 +217,12 @@ export const App: React.FC = () => {
     );
   }
 
-  const isMyTurn = gameState.currentTurnPlayerId.includes(socket?.id || '') || gameState.players[0]?.id === gameState.currentTurnPlayerId;
-  const opponents = gameState.players.slice(1);
+  const myPlayerId = gameState.myPlayerId || `player-${socket?.id}`;
+  const isMyTurn = gameState.currentTurnPlayerId === myPlayerId;
+  const opponents = gameState.players.filter(p => p.id !== myPlayerId);
+  const myPlayer = gameState.players.find(p => p.id === myPlayerId);
+  const isHost = gameState.players[0]?.id === myPlayerId;
+  const isCustomRoom = !gameState.id.startsWith('bot-game-');
   const stacking = gameState.stackingChain;
 
   return (
@@ -180,48 +238,170 @@ export const App: React.FC = () => {
 
       {/* Room Modal */}
       {isRoomModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-xl font-black text-amber-400">Join or Create Room</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">Play with friends or test multiplayer across tabs</p>
-            <form onSubmit={handleJoinRoom} className="space-y-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
               <div>
-                <label className="text-xs text-slate-300 font-bold block mb-1">Your Name</label>
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400"
-                  placeholder="Player 1"
-                />
+                <h3 className="text-xl font-black text-amber-400">Multiplayer Room</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Play with friends in real time using room codes</p>
               </div>
-              <div>
-                <label className="text-xs text-slate-300 font-bold block mb-1">Room Code</label>
-                <input
-                  type="text"
-                  value={roomInput}
-                  onChange={e => setRoomInput(e.target.value.toUpperCase())}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white uppercase font-mono tracking-widest focus:outline-none focus:border-amber-400"
-                  placeholder="e.g. ROOM-101"
-                />
+              <button
+                onClick={() => setIsRoomModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* If currently in a custom multiplayer room, display quick info and copy buttons */}
+            {isCustomRoom && (
+              <div className="mb-4 p-3.5 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Current Room Code</span>
+                  <span className="font-mono font-black text-amber-400 text-lg tracking-wider">{gameState.id}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleCopyCode(gameState.id)}
+                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 cursor-pointer transition"
+                  >
+                    {copiedCode ? '✓ Copied' : '📋 Code'}
+                  </button>
+                  <button
+                    onClick={() => handleCopyLink(gameState.id)}
+                    className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black cursor-pointer transition shadow"
+                  >
+                    {copiedLink ? '✓ Copied' : '🔗 Link'}
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsRoomModalOpen(false)}
-                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!roomInput.trim()}
-                  className="flex-1 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow"
-                >
-                  Join Room
-                </button>
-              </div>
-            </form>
+            )}
+
+            {/* Tab Selector */}
+            <div className="flex rounded-xl bg-slate-800/80 p-1 mb-4 border border-slate-700/60">
+              <button
+                type="button"
+                onClick={() => setRoomModalTab('join')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  roomModalTab === 'join'
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                🔑 Join with Code
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoomModalTab('create');
+                  if (!createRoomCode) {
+                    setCreateRoomCode('UNO-' + Math.floor(1000 + Math.random() * 9000));
+                  }
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  roomModalTab === 'create'
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                🎲 Create Room
+              </button>
+            </div>
+
+            {roomModalTab === 'join' ? (
+              <form onSubmit={handleJoinRoom} className="space-y-3.5">
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">Your Nickname</label>
+                  <input
+                    type="text"
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400"
+                    placeholder="Enter your nickname"
+                    maxLength={20}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">Room Code</label>
+                  <input
+                    type="text"
+                    value={roomInput}
+                    onChange={e => setRoomInput(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white uppercase font-mono tracking-widest focus:outline-none focus:border-amber-400"
+                    placeholder="e.g. UNO-4821"
+                    maxLength={16}
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">Ask the room host for their code to join their game.</p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRoomModalOpen(false)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!roomInput.trim()}
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow"
+                  >
+                    Join Room
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleCreateRoomSubmit} className="space-y-3.5">
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">Your Nickname</label>
+                  <input
+                    type="text"
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400"
+                    placeholder="Enter your nickname"
+                    maxLength={20}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-slate-300 font-bold">New Room Code</label>
+                    <button
+                      type="button"
+                      onClick={() => setCreateRoomCode('UNO-' + Math.floor(1000 + Math.random() * 9000))}
+                      className="text-[11px] text-amber-400 hover:underline cursor-pointer"
+                    >
+                      🎲 Generate Random
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={createRoomCode}
+                    onChange={e => setCreateRoomCode(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white uppercase font-mono tracking-widest focus:outline-none focus:border-amber-400"
+                    placeholder="e.g. UNO-1234"
+                    maxLength={16}
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">A waiting lobby will be created where you can invite friends.</p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRoomModalOpen(false)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!createRoomCode.trim()}
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow"
+                  >
+                    Create & Enter Lobby
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -253,18 +433,28 @@ export const App: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsRoomModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-sky-400 border border-sky-400/30 flex items-center gap-1 cursor-pointer"
+            onClick={() => handleOpenRoomModal('join')}
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-sky-400 border border-sky-400/30 flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <span>🌐</span>
-            <span>Room: {gameState.id.length > 10 ? gameState.id.substring(0, 10) + '...' : gameState.id}</span>
+            <span>{isCustomRoom ? `Room: ${gameState.id}` : 'Multiplayer Rooms'}</span>
           </button>
+
+          {isCustomRoom && (
+            <button
+              onClick={() => handleCopyCode(gameState.id)}
+              title="Copy Room Code to clipboard"
+              className="px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 flex items-center cursor-pointer transition-colors"
+            >
+              <span>{copiedCode ? '✓' : '📋'}</span>
+            </button>
+          )}
 
           <button
             onClick={handleStartBotGame}
             className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider cursor-pointer shadow-md transition-colors"
           >
-            New Game (3 Bots)
+            Solo (3 Bots)
           </button>
 
           <button
@@ -343,46 +533,102 @@ export const App: React.FC = () => {
 
       {gameState.status === 'waiting' ? (
         <main className="flex-1 flex flex-col items-center justify-center p-4 max-w-lg mx-auto w-full text-center">
-          <div className="bg-slate-800/90 border-2 border-slate-700 rounded-3xl p-6 sm:p-8 w-full shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-2xl mx-auto mb-3">
+          <div className="bg-slate-900/95 border-2 border-slate-700 rounded-3xl p-6 sm:p-8 w-full shadow-2xl backdrop-blur-md">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
               🎮
             </div>
-            <h2 className="text-2xl font-black text-amber-400">Room: {gameState.id}</h2>
-            <p className="text-xs text-slate-400 mt-1 mb-6">
-              Share room code <strong className="text-white bg-slate-900 px-2 py-0.5 rounded font-mono text-sm">{gameState.id}</strong> with friends to play together!
+            <h2 className="text-2xl font-black text-amber-400 tracking-tight">Multiplayer Lobby</h2>
+            <p className="text-xs text-slate-400 mt-1 mb-4">
+              Share your room code or invite link with friends to play together
             </p>
 
-            <div className="space-y-2 mb-6">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-400 text-left">
-                Players in Room ({gameState.players.length}/6):
+            {/* Room Code Card */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-3">
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">
+                Room Join Code
               </div>
-              {gameState.players.map((p) => (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm">
-                  <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-3">
+                <span className="font-mono text-2xl sm:text-3xl font-black text-amber-400 tracking-widest bg-slate-900 px-4 py-1.5 rounded-xl border border-slate-700 select-all">
+                  {gameState.id}
+                </span>
+                <button
+                  onClick={() => handleCopyCode(gameState.id)}
+                  className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow transition active:scale-95"
+                >
+                  {copiedCode ? '✓ Copied' : '📋 Copy Code'}
+                </button>
+              </div>
+            </div>
+
+            {/* Direct Link Box */}
+            <div className="flex items-center gap-2 mb-6 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs">
+              <span className="text-slate-400 truncate flex-1 text-left font-mono text-[11px]">
+                {window.location.origin}/?room={gameState.id}
+              </span>
+              <button
+                onClick={() => handleCopyLink(gameState.id)}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-sky-400 rounded-lg font-bold cursor-pointer transition border border-sky-400/30 whitespace-nowrap"
+              >
+                {copiedLink ? '✓ Copied Link' : '🔗 Copy Link'}
+              </button>
+            </div>
+
+            {/* Connected Players List */}
+            <div className="space-y-2 mb-6">
+              <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+                <span>Players in Room ({gameState.players.length}/6)</span>
+                {gameState.players.length < 2 && (
+                  <span className="text-amber-400 lowercase font-normal">(need at least 2 to start)</span>
+                )}
+              </div>
+              {gameState.players.map((p, idx) => (
+                <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-sm">
+                  <div className="flex items-center gap-2.5">
                     <span className="text-lg">{p.isBot ? '🤖' : '👤'}</span>
-                    <span className="font-bold text-slate-200">{p.name}</span>
+                    <span className="font-bold text-slate-100">{p.name}</span>
+                    {p.id === myPlayerId && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-extrabold border border-sky-500/30">
+                        YOU
+                      </span>
+                    )}
+                    {idx === 0 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-extrabold border border-amber-500/30">
+                        HOST
+                      </span>
+                    )}
                   </div>
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     Ready
                   </span>
                 </div>
               ))}
             </div>
 
+            {/* Lobby Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleAddBot}
                 disabled={gameState.players.length >= 6}
-                className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 font-bold rounded-xl text-sm transition cursor-pointer"
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold rounded-xl text-sm transition cursor-pointer border border-slate-700"
               >
                 + Add AI Bot
               </button>
               <button
                 onClick={handleStartMultiplayerGame}
                 disabled={gameState.players.length < 2}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
               >
                 Start Game ({gameState.players.length} players)
+              </button>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-800/80">
+              <button
+                onClick={handleStartBotGame}
+                className="text-xs text-slate-400 hover:text-amber-400 underline cursor-pointer transition-colors"
+              >
+                Or leave room and play solo vs 3 bots
               </button>
             </div>
           </div>
@@ -390,7 +636,7 @@ export const App: React.FC = () => {
       ) : (
         <>
           {/* Opponents Area */}
-          <section className="grid grid-cols-3 gap-2 my-2 max-w-4xl mx-auto w-full">
+          <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 my-2 max-w-4xl mx-auto w-full">
         {opponents.map((opp, idx) => {
           const isOppTurn = opp.id === gameState.currentTurnPlayerId;
           return (

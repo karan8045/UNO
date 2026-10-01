@@ -728,6 +728,7 @@ export class UnoGame {
 
     return {
       id: this.id,
+      myPlayerId: forPlayerId,
       players: publicPlayers,
       currentTurnIndex: this.currentTurnIndex,
       currentTurnPlayerId: this.players[this.currentTurnIndex]?.id || '',

@@ -79,6 +79,17 @@ io.on('connection', (socket: Socket) => {
 
   // Create Quick Single-Player Game vs 3 Bots
   socket.on('start_bot_game', ({ playerName }: { playerName?: string }) => {
+    // Leave previous room if any
+    const prevMapping = socketToPlayer.get(socket.id);
+    if (prevMapping) {
+      socket.leave(prevMapping.gameId);
+      const prevGame = games.get(prevMapping.gameId);
+      if (prevGame && prevGame.status === 'waiting') {
+        prevGame.removePlayer(prevMapping.playerId);
+        broadcastGameState(prevMapping.gameId);
+      }
+    }
+
     const gameId = `bot-game-${socket.id.substring(0, 6)}`;
     const humanId = `player-${socket.id}`;
     const humanName = playerName?.trim() || 'Player 1';
@@ -102,8 +113,23 @@ io.on('connection', (socket: Socket) => {
   // Create or join a multiplayer room
   socket.on('join_room', ({ roomCode, playerName }: { roomCode: string; playerName: string }) => {
     const gameId = roomCode.trim().toUpperCase();
-    let game = games.get(gameId);
+    if (!gameId) {
+      socket.emit('action_error', { message: 'Room code cannot be empty.' });
+      return;
+    }
 
+    // Leave previous room if switching
+    const prevMapping = socketToPlayer.get(socket.id);
+    if (prevMapping && prevMapping.gameId !== gameId) {
+      socket.leave(prevMapping.gameId);
+      const prevGame = games.get(prevMapping.gameId);
+      if (prevGame && prevGame.status === 'waiting') {
+        prevGame.removePlayer(prevMapping.playerId);
+        broadcastGameState(prevMapping.gameId);
+      }
+    }
+
+    let game = games.get(gameId);
     if (!game) {
       game = new UnoGame({ id: gameId });
       games.set(gameId, game);
@@ -113,19 +139,32 @@ io.on('connection', (socket: Socket) => {
     const name = playerName?.trim() || `Player ${game.players.length + 1}`;
 
     if (game.status === 'waiting') {
-      game.addPlayer(playerId, name, false);
+      if (game.players.length >= 6) {
+        socket.emit('action_error', { message: 'Room is full (maximum 6 players).' });
+        return;
+      }
+      if (!game.players.some(p => p.id === playerId)) {
+        game.addPlayer(playerId, name, false);
+      }
+      socket.join(gameId);
+      socketToPlayer.set(socket.id, { gameId, playerId });
+      socket.emit('game_joined', { gameId, playerId });
     } else {
-      // Reconnection or spectator
-      const existing = game.players.find(p => p.name === name);
+      // In progress or game over: check reconnection or spectator
+      const existing = game.players.find(p => p.name.toLowerCase() === name.toLowerCase() && !p.isBot);
       if (existing) {
+        socket.join(gameId);
         socketToPlayer.set(socket.id, { gameId, playerId: existing.id });
+        socket.emit('game_joined', { gameId, playerId: existing.id });
+        game.addLog(`Player ${existing.name} reconnected.`, 'info');
+      } else {
+        // Allow spectating
+        socket.join(gameId);
+        socketToPlayer.set(socket.id, { gameId, playerId });
+        socket.emit('game_joined', { gameId, playerId });
       }
     }
 
-    socket.join(gameId);
-    socketToPlayer.set(socket.id, { gameId, playerId });
-
-    socket.emit('game_joined', { gameId, playerId });
     broadcastGameState(gameId);
   });
 
@@ -248,10 +287,29 @@ io.on('connection', (socket: Socket) => {
     broadcastGameState(game.id);
   });
 
+  // Explicit leave room
+  socket.on('leave_room', () => {
+    const mapping = socketToPlayer.get(socket.id);
+    if (mapping) {
+      socket.leave(mapping.gameId);
+      const game = games.get(mapping.gameId);
+      if (game && game.status === 'waiting') {
+        game.removePlayer(mapping.playerId);
+        broadcastGameState(mapping.gameId);
+      }
+      socketToPlayer.delete(socket.id);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
     const mapping = socketToPlayer.get(socket.id);
     if (mapping) {
+      const game = games.get(mapping.gameId);
+      if (game && game.status === 'waiting') {
+        game.removePlayer(mapping.playerId);
+        broadcastGameState(mapping.gameId);
+      }
       socketToPlayer.delete(socket.id);
     }
   });

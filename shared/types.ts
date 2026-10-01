@@ -80,6 +80,7 @@ export interface GameState {
 
 export interface PublicGameState {
   id: string;
+  myPlayerId?: string;
   players: PublicPlayer[];
   currentTurnIndex: number;
   currentTurnPlayerId: string;
